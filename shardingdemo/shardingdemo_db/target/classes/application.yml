@@ -1,0 +1,65 @@
+server:
+  port: 8082 #端口号
+
+#为了说明方便，这里按照 不分库-垂直分表 不分库-水评分表等类型去区分配置，这样
+#想使用哪种方式，直接切换配置即可
+spring:
+  profiles:
+    active: bfk_spfb
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+---
+#第一种：不分库，水平分表
+spring:
+  shardingsphere:
+    datasource:
+      names: ds1,ds2     # 自定义数据源的名称，如果由多个，用逗号分隔
+      ds1:               # 上面自定义的第一个数据源名称，用来配置该数据源的连接信息
+        type: com.zaxxer.hikari.HikariDataSource
+        driver-class-name: com.mysql.cj.jdbc.Driver
+        jdbc-url: jdbc:mysql://127.0.0.1:8086/camps1?useUnicode=true&autoReconnect=true
+        username: root
+        password: 123456
+      ds2:               # 上面自定义的第二个数据源名称，用来配置该数据源的连接信息
+        type: com.zaxxer.hikari.HikariDataSource
+        driver-class-name: com.mysql.cj.jdbc.Driver
+        jdbc-url: jdbc:mysql://127.0.0.1:8086/camps2?useUnicode=true&autoReconnect=true
+        username: root
+        password: 123456
+    rules:              # 这里配置分库分表策略
+      sharding:
+        tables:
+          t_student:   # 逻辑表明，比如我们有两张分表t_student_0,t_student_1,这里写t_student即可，数据具体保存到1还是2，由后面配置的算法自动路由
+            actual-data-nodes: ds$->{1..2}.t_student_$->{1..2}   #实际的数据表，由数据源+表名组成，用点号分隔，$->{1..2}表示表的后缀范围，我们这里只有两个库，两个表
+            database-strategy:   # 分库策略
+              standard:
+                sharding-column: id     # 分库所用的字段，这里是主键id
+                sharding-algorithm-name: db-alg   # 分库算法名，这里可以随便起名字，后面将根据这个名字来配置具体的分库算法
+            table-strategy:       # 分表策略配置
+              standard:
+                sharding-column: id     # 用那个字段来分表，这里是主键id
+                sharding-algorithm-name: table-alg  # 分表算法名，这里可以随便起名字，后面将根据这个名字来配置具体的分表算法
+            key-generate-strategy:     # 主键的生成策略
+              column: id               # 主键id
+              key-generator-name: pkey-alg    # 主键生成算法名，同样这里可以随便起名字，后面将根据这个名字来配置具体的主键生成算法
+
+        # 配置分片算法
+        sharding-algorithms:
+          db-alg:              # 前面配置的分库算法名称
+            type: INLINE
+            props:
+              algorithm-expression: ds$->{id%2+1}           # 根据主键取模来确定具体的哪个库，$->{id%2+1}其实就是计算到底是1还是2，然后拼接到ds后面，这里ds是个别名，实际上就是camps这个数据库名
+          table-alg:           # 前面配置的分表算法名称
+            type: INLINE
+            props:
+              algorithm-expression: t_student_$->{id%2+1}   # 根据主键取模然后加1来确定具体的那张表，$->{id%2+1}其实就是计算到底是1还是2，然后拼接到t_student_后面
+
+        key-generators:
+          pkey-alg:          #  前面配置的主键生成算法名称
+            type: SNOWFLAKE  #  雪花算法
+    props:
+      sql:
+        show: true            # 执行过程中展示sql
+
