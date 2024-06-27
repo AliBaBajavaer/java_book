@@ -11,50 +11,16 @@
 
 其实今天，再来十几个小时，还是可以学完的。所以要早点休息，早点起床。
 
-public enum ElementType {
-    /** Class, interface (including annotation type), or enum declaration */
-    TYPE,          类
-
-    /** Field declaration (includes enum constants) */
-    FIELD,    属性
-
-    /** Method declaration */
-    METHOD,    方法
-
-    /** Formal parameter declaration */
-    PARAMETER,  参数
-
-    /** Constructor declaration */
-    CONSTRUCTOR,  构造方法
-
-    /** Local variable declaration */
-    LOCAL_VARIABLE,    
-
-    /** Annotation type declaration */
-    ANNOTATION_TYPE,      
-
-    /** Package declaration */
-    PACKAGE,    
-
-    /**
-     * Type parameter declaration
-     *
-     * @since 1.8
-     */
-    TYPE_PARAMETER,
-
-    /**
-     * Use of a type
-     *
-     * @since 1.8
-     */
-    TYPE_USE
-}
-
-
 
 今日任务 
-  1.mysql:
-  2.redis:
-  3.java:
+  1.mysql: 重点了锁部分的文章。继续看3~5篇文章。     今天就看五篇吧，尤其是要弄明白explain,还有mysql背后的原理，高可用这些不是我们该管的 没怎么看，看了子查询部分，复习了查询方法和explain
+  2.redis: 昨天看了数据结构，今天接着看                         今天接着看一些命令，底层原理
+  3.java: 并发编程看完了aqs，解这看别的。看3篇文章.   搞明白了threadlocal，map的并发编程。别的啥也没搞懂，下午再看看map,和其他容器；哦对还看了condition对象，LockSupport.HashMap源码没有太看明白，得接着看，要看明白的源码就是java集合，java并发编程。这是7月份必须完全看明白的源码
+          设计模式：学习两个设计模式                            
+          java基础：继续看javaguide的八股文。             学习了java数组，java集合等         
+          集合：理解List集合的源码，写成文章。
+          java io好好学。理解nio；           今天必须好好理解java io;完全理解透彻。今天的重点，今天算是理解了nio,bio，以及常用的bio包装类。
+  4.算法：刷两道算法，复习以前的算法题         连续的子数组和  刷了两道。自己ac了两道，还有两道是抄的，其中一道太简单了；
+  5.操作系统：主要要看io.这个对理解很重要。    
+  6.计算机网络：                                  看看tcp/ip 一篇就行。
       
