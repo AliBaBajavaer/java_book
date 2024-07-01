@@ -85,12 +85,32 @@
               线程池中线程的个数根据任务类型，cpu数量来定，io密集型应该使用2*Ncpu;cpu密集型应该采用Ncpu+1来做。
             java本身提供了四种线程池，前三种根据线程池线程数量区分，最后一种可以执行延时任务。
   线程池的创建采用了Execute框架。
-            
 
+今日任务：  从今天开始都要写记录。
+    mysql:接着看文章，看两三篇吧，看一看mysql的逻辑架构，和引擎；redolog,undolog,          看了redolog,undolog，binlog
+    redis:看网络模型那一章，                                                               复习了持久化
+    java并发编程：好像都看完了。得复习一下，拔高以下，看看应用                             又看了看线程池，更理解了但是没有看futuretask
+    java设计模式：每天两个设计模式                                                        以后每天起来先看设计模式
+    java基础：接着看java基础                                                              没有看
+    jvm：学习                                                                            学习了类加载机制，双亲委派机制等
+    算法：刷双指针，每天刷一些sql题。                                                      刷了两三道滑动窗口的题。
+    计算机网络：看tcp/ip一节                                                               看了tcp/ip的拥塞，滑动窗口，以及rpc协议，websocket格式
+    操作系统：看小林coding                    没咋看。
 
+    mysql加锁：mysql无论是什么语句，在确定了扫描区间后就会进行加锁。正常的枷锁流程就是确定扫描区间然后逐个加next-key锁。但在一些情况下锁会退化。我们要注意这些特殊情况。
+    redis持久化：redis的持久化通过aof,rdb来实现。在这其中要注意写时复制技术。是实现高性能持久化的基础。
+    java并发编程：难点在于能不能自己手写一个高效的线程池，应对不同的并发请求。只要涉及到生产者消费者模式的。都可以使用ree锁，其他就用syn锁。书写简单。
+    mysql日志：  怎么理解Undo，redo，里面存的是数据，所以其实就是数据页的备份，只不过redolog寸的是多个版本的数据的备份，redolog和undo寸的都是和事务相关的数据。rollback时把undolog拿出来刷盘，恢复时把redolog拿出来刷盘。那怎么主从复制呢，用Binlog，事务是否提交以binlog为主，怎么判断事务是否需要恢复，
+  就是看binlog和redolog里的事务id，事务id可以在Binlog里面找到，就恢复，找不到就去undolog里进行回滚。
+  ·  一条记录的每一次更新操作产生的 undo log 格式都有一个 roll_pointer 指针和一个 trx_id 事务id：
 
-
-
+          通过 trx_id 可以知道该记录是被哪个事务修改的；
+          通过 roll_pointer 指针可以将这些 undo log 串成一个链表，这个链表就被称为版本链；
+    那么undolog如何持久化，undolog本身也是数据页，undolog通过redolog持久化。
+  什么是redolog？
+    redo log 是物理日志，记录了某个数据页做了什么修改，比如对 XXX 表空间中的 YYY 数据页 ZZZ 偏移量的地方做了AAA 更新，每当执行一个事务就会产生这样的一条或者多条物理日志。在事务提交时，只要先将 redo log 持久化到磁盘即可，可以不需要等到将缓存在 Buffer Pool 里的脏页数据持久化到磁盘。
+    当事务提交的时候redoLog一定会刷盘的。事务提交时binlog也会刷盘的。redolog可以实现顺序磁盘写。这一点比随机Io效率要高得多。此外redolog也会有其他的刷盘措施。
+  
 
 
 
