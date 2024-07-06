@@ -217,24 +217,94 @@
           算法：刷了单调栈，感觉不能贪多。慢慢刷吧.我觉得每天看看灵神的视频是耗时最少的了。不要看多，没用
           
           
+          今日任务：2024/07/06
+        java：
+                明确以后就是上午数据库+并发编程，下午Java+jvm，晚上计算机网络+算法+操作系统
+                学完序列化，反射，注解三大块。学习Jvm里的字节码部分
 
+        jdk内置的序列化时两个流。
+              jdk序列化的时候不会序列化静态变量，trasient变量，只会序列化成员变量。注意也不会序列化方法这些。
+              jdk序列化的时候包括两部分，头部，对象，头部生命版本号，魔数，对象部写成员属性。还包括开始结束符，类名，签名，属性，属性值。
+              以及一些特殊分隔符。
+            序列化Id:
+    如果可序列化类没有显式声明 serialVersionUID，则序列化运行时将基于该类的各个方面计算该类的默认
+    serialVersionUID 值。尽管这样，还是建议在每一个序列化的类中显式指定 serialVersionUID 的值。
+    因为不同的 jdk 编译很可能会生成不同的 serialVersionUID 默认值，从而导致在反序列化时抛出 InvalidClassExceptions 异常。
+    serialVersionUID 字段必须是 static final long 类型。
+            序列化要点：
+            1.父类如果是se,子类就都可以序列化。而子类是，父类不是，父类不会被序列化，数据丢失
+            2.属性是对象类型，属性必须实现序列化，否则会报错
+            3.反序列化时，如果对象属性有修改，增加，删减，那么修改部分数据丢失，不会报错
+            4.反序列化时Id被修改会序列化失败。
+            5.序列化会忽略trasient的属性
+      java还指定了Externalizable接口实现自定义的序列化，但他的协议依然是Jdk自身的协议，jdk序列化是无法跨语言，且非常的笨重，不适合在网络中
+进行传输。因此应该使用二进制序列化，以及json序列化。对于http应用，使用json序列化，对于微服务相互调用就应该使用二进制序列化，当我们进行传输的时候
+      首先应该考虑的就是序列化的协议。一般基于某种编码的字符串是最合适的
+      json序列化：  可以用FastJson,Jackson,Gson来进行json序列化，spring默认Jackson进行序列化。从性能上看Fastjson > Jackson > Gson
 
+  序列化要考虑到 安全性（是否存在漏洞，加密。当然使用https时网络报文层面会进行加密，但自定义的rpc是没有加密的），兼容性（跨平台，跨语言），性能（时间，空间），易用性。
+    java反射：
+        反射广泛应用于注解，框架，动态代理里面。
+        反射首先要获取Class文件，class文件的获取方式有四种，常用的是三种，第四种不会对Class对象进行初始化。Class文件本质是Class对象
+    通过CLass文件可以获取Method,FIELD对象。通过Method,field对象可以获取Annotation对象，之后可以获取注解的值，进行赋值操作。对私有的成员，方法进行调用时
+首先要修改可达性，修改为true;
+      反射的缺点：存在安全性问题，反射的性能稍差。
+      反射可以去修改成员属性的值，调用成员方法，生成对象。  
+      反射的本质就是将JAVA类里的各种成分都映射成为对象，method映射成Method对象，成员就映射成FIELD对象。
+      instanceof 关键字比较的就是class对象是否一致。
+      动态代理：
+      jdk自带的：        实现InvocationHandler的接口必须是代理模式，里面有原目标对象的属性，之后重写invoke方法。然后调用Proxy.newInstance()方法创建代理对象。这样创建的class对象，在使用结束后就会被销毁，减轻内存的负担，但是动态代理只能基于接口进行，对于一些类对象，想实现动态代理只能用cglib动态代理
+      cglib:   spring里的aop使用cglib来生成动态对象。代码上和jdk差别不大，但是底层逻辑不一样。在CGLIB中，方法的调用并不是通过反射来完成的，而是直接对方法进行调用
+注解：
+    定义注解时要用到元注解
+    @Documented
+    @Target({ElementType.FIELD, ElementType.PARAMETER})   //可以出现在属性，参数上
+    @Retention(RetentionPolicy.RUNTIME)                   //可以出现在运行时。即可以通过反射获取他。
+    public @interface RegexValid {}
+注解属性只能使用 public 或默认访问级别（即不指定访问级别修饰符）修饰。
 
+注解属性的数据类型有限制要求。支持的数据类型如下：
 
+所有基本数据类型（byte、char、short、int、long、float、double、boolean）
+String 类型
+Class 类
+enum 类型
+Annotation 类型
+以上所有类型的数组
+注解属性必须有确定的值，建议指定默认值。注解属性只能通过指定默认值或使用注解时指定属性值，相较之下，指定默认值的方式更为可靠。注解属性如果是引用类型，不可以为 null。这个约束使得注解处理器很难判断注解属性是默认值，或是使用注解时所指定的属性值。为此，我们设置默认值时，一般会定义一些特殊的值，例如空字符串或者负数。
 
+如果注解中只有一个属性值，最好将其命名为 value。因为，指定属性名为 value，在使用注解时，指定 value 的值可以不指定属性名称。
+使用注解：
+      Method,Field属性都有isAnnotationPresent,和getAnnotation(Class class)属性来获取方法，属性，参数上的注解。进而获取值。
+枚举：
+          在 enum 中，提供了一些基本方法：
 
+          values()：返回 enum 实例的数组，而且该数组中的元素严格保持在 enum 中声明时的顺序。
+          name()：返回实例名。
+          ordinal()：返回实例声明时的次序，从 0 开始。
+          getDeclaringClass()：返回实例所属的 enum 类型。
+          equals() ：判断是否为同一个对象。
+          可以使用 == 来比较enum实例。
 
+          此外，java.lang.Enum实现了Comparable和 Serializable 接口，所以也提供 compareTo() 方法。
 
-
-
-
-
-
-
-
-
-
-
+          枚举也可以实现方法，枚举自身也可以定义方法。也可以调用方法。
+          枚举适合实现单例模式。而且是最佳方法。
+  netty：
+        使用Channel，ByteBuffer读取磁盘文件.
+       try(FileChannel channel=new FileInputStream("E:\\project0\\Redis-笔记资料\\03-高级篇\\资料\\juc_learn\\juc1\\eslearn\\src\\test\\resources\\application.yaml").getChannel()) {
+            ByteBuffer buffer = ByteBuffer.allocate(10);
+           while(channel.read(buffer)!=-1)//read代表的是方向，从磁盘到内存，write代表的是从内存写到磁盘。
+           {
+               buffer.flip();//切换到buffer的读模式
+               while (buffer.hasRemaining())
+               {
+                   byte b = buffer.get();
+                   System.out.print((char)b);
+               }
+               buffer.clear();//清空buffer，切换为写模式
+           }
+          Channel是FileInputStream读写文件的关键。ByteBuffer是内存里的区域，用来存储Channel读写的字节。
 
 
 
