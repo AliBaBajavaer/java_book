@@ -305,7 +305,9 @@ Annotation 类型
                buffer.clear();//清空buffer，切换为写模式
            }
           Channel是FileInputStream读写文件的关键。ByteBuffer是内存里的区域，用来存储Channel读写的字节。
-
-
+  mysql:
+        子查询执行流程。以及一条普通sql语句的执行流程
+  感觉并发编程得一遍一遍地看，一遍一遍的做，刷题。现在首先学会各个api的使用，把leetcode的十道题全部刷完。然后多多看源码，写总结。但我感觉，网络Io加上多线程才是网络编程。redis我觉得明天可以看看Lua,学会搭建redis集群
+  mysql的话，我感觉要一遍一遍的看。现在重点看看事务机制。
 
 
