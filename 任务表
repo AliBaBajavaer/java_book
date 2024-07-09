@@ -481,3 +481,127 @@ redis场景：  网易游戏直播间弹幕系统
             常见于发布订阅。
 今日感悟：感觉redis看的也差不多了。剩下就是要实操，每天连连redis的api，看看redis的场景题。主要是要实操才行。mysql其实也差不多了，剩下就是也得实操，还得背。我觉得可以看一些进阶内容了。还有，每天还是要看怎样运行的和设计与实现。并发编程也是要实操，加上看源码。网络这块，感觉每天看看netty算了
 ，一天看个四五节。对于理解网络编程是好的。jvm我觉得不要急。每天看一些。重点是java八股，赶快看完，还有一些场景题目，加密算法。
+
+
+先学设计模式吧，看看设计模式。
+访问者模式：
+        抽象访问者：定义了对自身数据结构中各个元素的操作，是接口
+        具体访问者：实现了访问者接口中定义的操作
+        抽象元素：定义了接受访问者的接口，通常是一个接口或抽象类，其中定义了一个接受访问者的方法，被访问者对象作为方法的参数。
+        具体元素：实现了抽象元素接口，它是数据结构中的具体的元素，用于接收具体的访问者并执行相应的操作。每个具体元素都有自己的业务逻辑，并在接收访问者时将具体的操作委托给访问者进行处理。
+        对象结构：是一个包含元素角色的容器，提供让访问者对象遍历容器中的所有元素的方法，通常由 List、Set、Map 等聚合类实现。
+      对象结构提供了让访问者访问容器每一个元素的方法。元素本身的抽象方法里，参数是访问者，而在里面其实是访问者将元素作为参数进行调用。
+        对元素的操作是在访问者里定义的，在具体访问者里实现的。抽象元素里的方法接收抽象访问者作为参数，也就是说，其实元素本身是有操作的，但是里面只是调用了参数的方法，也就相当于把具体操作交给了访问者来实现。
+      举例：参观博物馆的时候，游客和考古学家对每一件展品所做的操作是不同的。即对元素的操作是不一样的。那就需要把对展品的操作拿出来，交给这些游客来实现。 
+      访问者模式就是将对数据结构的操作与数据结构分离。这样就可以将对数据结构的操作多样化。尤其是这个数据结构并不是数据型数据结构时。
+责任链模式：交给一批来处理，包括抽象处理器和具体处理器两个元素
+命令模式：存在相互调用的时候用命令模式。
+今天应该学习java多线程的应用了。狂刷一天的题。搞明白场景。
+Semaphore：
+      semaphore底层就是aqs队列，acquire()方法就是将state的值减去一个值，relase()方法是将state值加上一个值。本质他也是用到了state队列。acquire方法则是会加入阻塞队列，
+感觉这个月，要加强并发编程的练习。不能光看，还要在写的过程中了解原理。
+最朴素的办法就是lock,和syn+volatile，用这两个解决问题。不要去用高阶的，容易死锁。感觉不会的就是并发编程，要多练！数据库这块还行，要实操!       
+今天的任务：搞明白并发编程！
+    synchronized:
+            可以调用wait,notify将当前线程加入阻塞队列，或者唤醒阻塞队列里的线程，返回的前提是获得了锁。调用wait方法时，会将当前线程加入阻塞队列，notify方法会将线程加入同步队列，在同步队列里争抢锁成功后，就可以继续运行。
+    线程之前的通信可以使用管道输入输出流：PipedReader,PipedWriter.
+jdk本身提供的synchronized,wait,notify,notifyAll,PipedStream,join，volatile提供了基本的线程运行逻辑。volatile是一种轻量级的锁。wait,join都提供了超时模式，syn基本都是阻塞式的获取锁。
+如果想恢复线程的执行，可以用LockSupport
+lock相比于syn可以多次释放获得锁，且lock提供了condition,非常好；condition必须和lock相关联。此外，lock可以中断的，非阻塞的获取锁。
+在java里，实现自定义的同步器，比如锁，阻塞队列，都要采用aqs同步器。
+原子更新类：
+      原子更新类都无法解决aba问题，可以更新引用，int,boolean,Object类。他们的使用不是很熟悉，但可以用来计算商品的总价格等。不过当商品服务部署了多个服务时，就不太行了。
+多线程工具类：
+      Semaphore,CountDownLatch,Exchanger,CycliBarrier一共四个。
+  CountDownLatch:用于协调主线程和子线程的工作。   适合于传输大文件。再结合操作系统的零拷贝效率会很高。
+  CycliBarrier:    cyclibarrirer可以协调所有的线程一起工作。当一个线程到达await方法后，线程就会阻塞，知道所有的线程都到达了await,且变量的值减为0，所有的线程才会被全部唤醒，开始工作。常见的例子就是打游戏，只有所有的玩家都进入游戏，
+                  游戏才能开始。
+  Semaphore:    信号量，用来控制并发线程的数量
+  Exchanger:   用于两个线程之间交互信息。exchange相比于PipedReader的单向传输,使用exchanger的两个线程可以相互传输信息，
+
+  
+
+    CountDownLatch源码：
+            使用了aqs同步器，
+          public void countDown() { sync.releaseShared(1); }  将state减少1
+          public void await() throws InterruptedException {sync.acquireSharedInterruptibly(1);}  state值为0的时候就返回。因为doAcquire返回的条件就是state==0;
+
+          //释放锁
+          protected boolean tryReleaseShared(int releases) {
+          
+            // Decrement count; signal when transition to zero
+            for (;;) {
+                int c = getState();
+                if (c == 0)
+                    return false;
+                int nextc = c-1;
+                if (compareAndSetState(c, nextc))
+                    return nextc == 0;
+            }
+        }
+    }
+          public final void acquireSharedInterruptibly(int arg)
+            throws InterruptedException {
+        if (Thread.interrupted())
+            throw new InterruptedException();
+        if (tryAcquireShared(arg) < 0)
+            doAcquireSharedInterruptibly(arg);
+    }
+
+ protected int tryAcquireShared(int acquires) {
+            return (getState() == 0) ? 1 : -1;
+        }
+//获取aqs锁，插入到同步队列里，如果之前的节点是头节点，就把自己设置成头节点。然后返回。
+ private void doAcquireSharedInterruptibly(int arg)
+        throws InterruptedException {
+        final Node node = addWaiter(Node.SHARED);
+        boolean failed = true;
+        try {
+            for (;;) {
+                final Node p = node.predecessor();
+                if (p == head) {
+                    int r = tryAcquireShared(arg);//不等于0的时候就代表state还有值。那就继续阻塞，
+                    if (r >= 0) {
+                        setHeadAndPropagate(node, r);
+                        p.next = null; // help GC
+                        failed = false;
+                        return;
+                    }
+                }
+                if (shouldParkAfterFailedAcquire(p, node) &&
+                    parkAndCheckInterrupt())
+                    throw new InterruptedException();
+            }
+        } finally {
+            if (failed)
+                cancelAcquire(node);
+        }
+    }
+总结：4中多线程工具类的核心依然是aqs，可见aqs是并发编程的核心。除了aqs,还有volatile,synchronized,cas,unsafe，如何基于aqs实现公平锁，非公锁，可重入锁。
+    aqs的核心就是阻塞队列，诀窍就是成为头结点的线程获得锁。而释放锁的核心就是要唤醒head.next节点对应的线程。采用的是unpark() ,此外还有可重入锁的设置，都是一样的。Condition是一个封装，它封装了ConditionObject,该类里面有一个阻塞队列。
+ public class ConditionObject implements Condition, java.io.Serializable {
+        private static final long serialVersionUID = 1173984872572414699L;
+        /** First node of condition queue. */    阻塞队列第一个节点
+        private transient Node firstWaiter;
+        /** Last node of condition queue. */  阻塞队列最后一个节点
+        private transient Node lastWaiter;
+        public ConditionObject() { }
+公平锁，非公平锁的获取.该怎么设置？
+阻塞队列：
+      插入方法，移除方法，检查方法，这三个方法根据队列为空，满的时候采取什么操作。有以下几种：抛出异常，返回特殊值，阻塞，超时退出。为了避免命名冲突，三种方法应该重载。
+阻塞队列的实现也是使用了aqs;阻塞的实现使用了Locksupport.park来实现。
+    
+ 延时阻塞队列：队列里的元素要实现Delayed接口里的getDelay()方法，此外还要有一个AtomicLong 的sequence变量，还要实现compareTo接口，指定比较规则，此外还有一个Time相关的元素，指定时间
+            当消费者从队列里拿元素时，拿出后调用getDelay方法计算timer与当前时间的差值，如果小于0，说明timer在当前元素之前，那么就可以获取该元素，否则就阻塞当前线程，当然如果现在有一个线程也在获取头部元素，且在first里标记了，那就阻塞当前线程。线程执行完后调用signal，唤醒其他线程。
+适合高并发的队列：SynchronousQueue
+  线程之间传递消息的方式：共享内存，以及直接传输两种。Syn和LinkedTransferQueue都是采用了直接传输。
+      
+
+一般来说，我们可以设计阻塞队列来实现自己的线程池。实现更高效的线程池
+DelayQueue:
+      使用了PriorityQueue来实现延时阻塞队列。
+计算机网络：
+      好好看看。
+
+总结：今天复习了并发编程的知识点。感觉还是缺少实操。弟弟今天说了一个坏消息。我们两个都没有退路，但我们两个前面都不是绝路。如果我俩一直坚持学习，就没事，反之如果贪玩，就会变成绝路，死路。今天看了看并发编程，以后还是要多看MySQL，redis,每天早上起来就看这俩。现在也要包括高可用了。好好看，好好学。今后要注意实操。
+        
