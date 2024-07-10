@@ -82,4 +82,93 @@
         }
     }
 ```
+看门狗：
+
+​	如果锁没有过期时间，那么redisson会自动给他加上30s的过期时间，而后调用定时任务，每过1/3时间时就自动续期。取消锁的时候，并不是之间删除，而是移除定时任务，等待锁的自动过期。
+```java
+ private <T> RFuture<Long> tryAcquireAsync(long waitTime, long leaseTime, TimeUnit unit, long threadId) {
+        if (leaseTime != -1L) {//存在过期时间。
+            return this.tryLockInnerAsync(waitTime, leaseTime, unit, threadId, RedisCommands.EVAL_LONG);
+        } else {//不存在的时候，使用静态常量，加上一个过期时间，这样即使服务崩溃了，也可以保证锁的释放
+            //this.commandExecutor.getConnectionManager().getCfg().getLockWatchdogTimeout()就是30s
+            RFuture<Long> ttlRemainingFuture = this.tryLockInnerAsync(waitTime, this.commandExecutor.getConnectionManager().getCfg().getLockWatchdogTimeout(), TimeUnit.MILLISECONDS, threadId, RedisCommands.EVAL_LONG);
+            ttlRemainingFuture.onComplete((ttlRemaining, e) -> {
+                if (e == null) {//获取锁成功了
+                    if (ttlRemaining == null) {
+                        this.scheduleExpirationRenewal(threadId);//开始定时续期
+                    }
+	
+                }
+            });
+            return ttlRemainingFuture;//获取锁失败了，返回锁现在的过期时间
+        }
+    }
+//定时续期锁
+ private void scheduleExpirationRenewal(long threadId) {
+        ExpirationEntry entry = new ExpirationEntry();
+        ExpirationEntry oldEntry = (ExpirationEntry)EXPIRATION_RENEWAL_MAP.putIfAbsent(this.getEntryName(), entry);
+        if (oldEntry != null) {
+            oldEntry.addThreadId(threadId);
+        } else {
+            entry.addThreadId(threadId);
+            this.renewExpiration();//开启定时任务
+        }
+
+    }
+//在这个方法里会创建一个定时任务，每1/3时间自动更新锁的有效期
+ private void renewExpiration() {
+        ExpirationEntry ee = (ExpirationEntry)EXPIRATION_RENEWAL_MAP.get(this.getEntryName());
+        if (ee != null) {
+            //commandExecutor应该是一个线程池，用于执行定时任务
+            Timeout task = this.commandExecutor.getConnectionManager().newTimeout(new TimerTask() {
+                public void run(Timeout timeout) throws Exception {
+                    ExpirationEntry ent = (ExpirationEntry)RedissonLock.EXPIRATION_RENEWAL_MAP.get(RedissonLock.this.getEntryName());
+                    if (ent != null) {
+                        Long threadId = ent.getFirstThreadId();
+                        if (threadId != null) {
+                            //这段代码就是自动更新锁的有效期
+                            RFuture<Boolean> future = RedissonLock.this.renewExpirationAsync(threadId);
+                            future.onComplete((res, e) -> {
+                                if (e != null) {
+                                    RedissonLock.log.error("Can't update lock " + RedissonLock.this.getName() + " expiration", e);
+                                } else {
+                                    if (res) {
+                                        RedissonLock.this.renewExpiration();
+                                    }
+
+                                }
+                            });
+                        }
+                    }
+                }
+            }, this.internalLockLeaseTime / 3L, TimeUnit.MILLISECONDS);
+            ee.setTimeout(task);
+        }
+    }
+//自动更新锁的有效期；
+protected RFuture<Boolean> renewExpirationAsync(long threadId) {
+        return this.evalWriteAsync(this.getName(), LongCodec.INSTANCE, RedisCommands.EVAL_BOOLEAN, "if (redis.call('hexists', KEYS[1], ARGV[2]) == 1) then redis.call('pexpire', KEYS[1], ARGV[1]); return 1; end; return 0;", Collections.singletonList(this.getName()), this.internalLockLeaseTime, this.getLockName(threadId));
+    }
+
+//取消任务的时候，只是将任务从线程池里面移除，锁到期自动取消；、
+ void cancelExpirationRenewal(Long threadId) {
+        ExpirationEntry task = (ExpirationEntry)EXPIRATION_RENEWAL_MAP.get(this.getEntryName());
+        if (task != null) {
+            if (threadId != null) {
+                task.removeThreadId(threadId);
+            }
+
+            if (threadId == null || task.hasNoThreads()) {
+                Timeout timeout = task.getTimeout();
+                if (timeout != null) {
+                    timeout.cancel();//取消任务
+                }
+
+                EXPIRATION_RENEWAL_MAP.remove(this.getEntryName());
+            }
+
+        }
+    }
+
+```
 
