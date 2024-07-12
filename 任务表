@@ -724,3 +724,124 @@ redis: 继续看文章！
           八股：背一背计算机网络了，java基础了。
 
     感悟：感觉只能早起，五点起来干活，每天可以多8个小时的学习时间。基本可以学完数据库相关的。
+
+  redis:完全掌握基本命令和数据结构，主从集群复制！才能去看场景题。
+    redis：根据需求，和内存，选择正确的数据结构。· 
+          redis的数据结构会根据类型大小做出不同的实现；redis的value对应的是redisObject结构
+        redisObject{
+                unsigned  type;  通过 type 查看
+                unsigned  encoding; 通过object encoding查看
+                void* ptr;   指向底层的数据结构
+        }
+          type 只有5个：string,set hset,list zset.
+          编码类型就是底层的数据结构实现：int,embstr,raw,  linkedlist,ziplist,intset,HT,skiplist分别是整数，简单字符串，动态字符串，双向链表，压缩列表（存在级联更新，但内存小）整数集合（set里面全是整数的时候）HT （hset的底层）skiplist(zset的底层)
+      字符串对象：  type位string
+              如果字符串长度是39字节，那么用embstr保存这个值，特点是。redisObject和sds将分配一个连续的空间；如果是大于39空间，那么就是用raw格式，特点是sds,和redisObject不在一块了。释放内存时需要释放两次，如果字符串保存的是整数，在Int范围内，也是用int来保存。如果是小数，就用embstr或raw来保存
+            命令：set,get,append,incrbyfloat,incrby,decrby,strlen,sterange getrange
+      set对象：    编码为int set,hashtable
+              如果全是整数，就用int set来保存，int set是升序的，查找时使用二分查找的方式。集合元素对象保存的所有元素都是整数值且数量不超过512个用int set,超过就用hashtable.
+                调节参数：
+                        set-max-ziplist-entries:
+          命令：sadd,scard,sismember,smembers,srandmember,spop,srem,sinter,sunion,sdiff
+      list:    编码为ziplist,linkedlist
+              元素的字符串长度小于64字节，元素数量小于512；
+              调节参数：  list-max-ziplist-value:
+                          list-max-ziplist-entries:
+              命令： lpush,rpush,lpop,rpop,lindex,llen,linsert,lrem,ltrim,lset
+              可以修改指定索引处的值，可以在某个节点前后插入值，可以修剪链表的长度，可以返回指定索引处的值
+      hash对象：ziplist,linkedlist
+                键，值字符串的长度都小于64字节，键值对数量小于512个
+                调节参数： hash-max-ziplist-value
+                          hash-max-ziplist-entries
+            命令：hset,hget,hexists,hdel,hlen,hgetall
+            解析：只能对hash进行增加删除，统计长度的操作；
+      zset对象：ziplist,skiplist
+                元素数量小于128个，长度小于64字节
+                调节参数：
+                          zset-max-ziplist-value
+                          zset-max-ziplist-entries
+                命令：zadd,zcard,zcount,zrange,zrevrange,zrank,zrevrank,zrem,zscore
+      就是这些个命令，所有的场景都是用这些个命令来实现的。
+        剩下几种数据结构：
+                    bitmap,geo hyperlog    bitmap用于海量数据打卡，签名等，geo用于地理纬度查询，hyperlog用于粗略估计总量
+              bitmap:    setbit key offset value
+                          getbit key offset  
+              hyperlog：pfadd key value  pfsountc key  
+              geo: geoadd  geosearch fgeoradius\
+                              geoadd city 121.47 31.23 "上海" 116.41 39.90 "北京"
+                              geosearch key 
+                             geopos city 北京
+                             geodist city 北京 上海 km
+                            georadius city 121.48 31.23 10 km withdist withcoord withhash count 10 desc
+                             georadiusbymember city "上海" 10 km withdist withcoord withhash count 10 desc 
+        redis数据类型就这么多。所有场景都根据他们来实现。
+        redis本身数据结构：
+          redisServer{
+            redisDb* db;
+          }
+          redisDb{
+          dict*dict;
+          }
+          dict{
+        dictht ht[2];
+          }
+          dictht{
+          dictEntry * *table;
+          unsigned long size;
+          unsigned long sizemask;
+          unsigned long used;
+          }
+        dictEntry{
+          void* key;
+          union{
+          void* val;
+          uint64_t u64;
+          }
+        dictEntry *next;
+        }
+        //骑手抢单
+              有一个单，扫数据库订单表，找到，设置。自己的名字。修改配送状态。可以使用拉模式。骑手的app定时查询数据库，获得到后，使用乐观锁修改。这样性能不好；
+            写完数据库后，同步到redis,这里会有时序的问题。骑手自己的程序轮询，但这样访问量很大，因此应该采用推模式。有一个系统定时轮询。
+
+      接着看redis的高性能，高可用，今天彻底结束。
+        主从复制，哨兵，集群，现在主要看集群。
+          集群： cluster meet ip port， 会将ip port对应的节点加入到nodes所在的集群里
+          启动集群时需要更改配置文件里的cluster-enabled，改为yes，否则无法使用集群模式。集群根据槽来确定数据是否要存入自己的节点，reids采用hash槽的形式相对改善了
+          集群的伸缩能力，因为他会自动的进行数据迁移。
+          槽的使用：redis服务器接收到key后，使用hash算法转换为hash值，然后hash%16384得到数据所在的槽，接着查询自己的char slots[16384]。看是否为1，1说明节点在自己的
+          处理范围内，为0就要查询clusterNodes *slots[16384]，找到索引对应的主节点值，再次查询。接着返回结果。
+          redis今天就到这里吧，看看别的，http吧。http感觉也没啥用呀，就把那些文章看完就行。感觉redis的集群，还是很难判断的。
+      现总结主从复制和哨兵，我们要明白他们会出什么问题，他俩都是应对读多写少的请求的。集群是应对海量数据写多读多的请求的。
+    
+    http:
+          http将数据类型分为八类，八类下边由很多子类格式：type/subtype。如text/html,就表示是文本类型里的html文件。image/png就表示是图片类型里的png格式的图片。
+        对于未知数据类型，采用application,如application/octet-stream就表示是二进制数据。此外对于大文件，还需要进行压缩；指出采用了何种压缩算法。即encoding type;
+        常见的有gzip,deflate,br等
+            http里的字段： accept:  accept-encoding: content-type:
+          语言类型： accept-language:   content-language:     accept-charset:  语言的编码格式放在content-type里。
+          Connection:表示了希望之后的连接该怎么处理，keep-alive表示之后应该继续保持连接；close表示关闭连接。
+          服务器主动断开连接的方式： keepalive_timeout,keepalive_requests，前者表示一段时间内没有数据收发就主动断开连接，后者表示长连接上的最大请求次数。 这是在nging里边的设置；
+          其实tcp本身就是可以主动断开连接的。但在http里服务器只能在自己的配置文件里面进行设置。
+          重定向：http服务器的响应报文的headers里出现了Location:的字段，它的内容就是客户端应该重定向的uri,这个uri既可以是相对uri,也可以是绝对uri,相对uri省略了scheme,host:port,只有
+        path,query。
+              区别：站内条转需要使用相对uri,站外跳转需要使用绝对uri
+          重定向的问题：性能损耗和循环跳转。
+        Cookie:    
+                请求头里由Cookie,响应头里有set-cookie;set-cookie的字段是：key=value; 请求头里的字段是 cookie:key=value结构。 cookie由浏览器存储，服务器和客户端浏览器个有一份
+        cookie存在生存周期，他的有效期由expires,max-age两个属性来设置。“Expires”俗称“过期时间”，用的是绝对时间点，可以理解为“截止日期”（deadline）。“Max-Age”用的是相对时间，单位是秒
+浏览器用收到报文的时间点再加上 Max-Age，就可以得到失效的绝对时间。Expires 和 Max-Age 可以同时出现，两者的失效时间可以一致，也可以不一致，但浏览器会优先采用 Max-Age 计算失效期。
+        其次cookie有作用域，domain,path属性制定了cookie所属的域名和路径，浏览器在发送cookie前会从uri里取出host,port对比cookie的属性，不满足条件时，就不会再请求头里发送cookie.
+        此外cookie还有安全性，httponly告诉浏览器cookie只能通过http协议传输，secure表示cookie只能用https加密传输。
+        http的缓存：cache-control字段，属性有max-age;max-age=30表示相应的数据将缓存30s。时间的计算起点是响应报文的创建时刻即离开服务器的时刻。
+                    此外还有 no_cache字段，表示可以缓存但使用前必须去服务器验证是否过期（即还要发送http请求），no_store表示不允许缓存。 must_revalidate表示过期后如果还想用就要去服务器
+      验证。
+              对于缓存，客户端浏览器也可以在请求里添加缓存相关的请求，比如cache-control:no-cache,表示不希望缓存。而查看是否使用缓存需要根据请求头里的status-code，如果后面有from disk cache；
+      就表示是缓存。
+              条件缓存：  if-modified-since,if-none-match  ,需要使用上一次服务器响应时的数据 last-modified,和ETag,
+      代理服务器：服务器会有一个代理，缓存静态文件，常用的就是nginx,代理可以解决跨域的问题。以及安全地问题。还有负载均衡的问题。常用的字段就是Via字段。通常情况下服务端需要知道用户的ip地址，
+      因此http里面出现了 X-forwarded-for ,x-real-ip两个字段。后者就是客户的真实ip，此外还有origin,via字段
+        感悟：还需要了解加密算法，但我觉得一天时间花在数据库上是没问题的。
+      如何伪装redis的客户端，执行info replication;可以减少主从节点的数据不一致情况，
+      redis主从复制的缺点，没有复杂均衡和轮询的中间件，可能出现数据不一致的情况。哨兵机制，如果哨兵挂了怎么办
+
+    感悟：明天早上继续看集群。要彻底看明白，然后过几天实操一波，继续实验mysql的加锁。
