@@ -846,3 +846,23 @@ redis: 继续看文章！
 
     感悟：明天早上继续看集群。要彻底看明白，然后过几天实操一波，继续实验mysql的加锁。我觉得明天可以把集群结束了。然后每天复习。java就可以复习一些基础和框架就行了。除此之外呢，还有一些，但主要就是这个了
   ，也就是redis，剩下还有并发编程。但可以接着练练redis的数据结构。不同数据结构主要怕是
+    今日任务： 2024/07/13 
+    redis:看明白集群。
+    创建集群：     redis-cli --cluster
+    访问节点：      redis-cli -c -p port 
+    查看集群：     redis-cli -p cluster nodes
+    添加集群节点： redis-cli --cluster add-node new_host:new_port existing_host: existing_port --cluster-slave  --cluster-master-id <arg>  默认是主节点
+    插槽分配：      redis-cli --cluster reshard ip:port         x(移动的插槽的数量)      id(接受插槽的id)        source(槽的来源id)  done(结束)     yes（是否要移动插槽）
+    集群的数据迁移类似哨兵，不过是自动完成的。
+    故障转移命令:cluster failover  在从节点执行，执行后会直接将从节点变成主节点，主节点变成从节点，数据迁移工作
+    ask错误：发生在槽迁移期间的错误，是一种临时方案
+    moved错误：发生在正常运行期间
+    选举新节点：当某个主节点状态时fail时，发现fail的主节点会在集群里广播，收到消息的fail节点的从节点，就会进行广播，要求处理槽的节点给自己投票。票数超过N/2+1时，该从节点就成为主节点。
+    PING:集群里的节点每隔1s就从集群中随机挑出5个节点，对这五个节点中最长时间没有发送过ping消息的节点发送ping消息。以此检验该节点是否在线。当然一个节点一个可以直接广播pong消息，来更新时间。
+    aqs看源码
+        REENTRABNTLOCK:
+              非公平锁：只是用cas,因此锁的性能要好一些，此外，非公平锁是非阻塞的。
+              公平锁：加入了同步队列，
+  jvm:
+      查看字节码文件： javap -verbose PCRegisterTest.class
+        
