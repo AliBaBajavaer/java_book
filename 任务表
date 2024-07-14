@@ -883,3 +883,13 @@ redis: 继续看文章！
 
     总结：明天要接着看Mysql,redis，redis尤其要做好命令的记忆和熟悉，然后多练。多看配置文件。并发编程继续看源码，看aqs和多线程的源码，mysql要加强实操。jvm发狠的看，看完jvm基本就
     大功告成了。redis要多看场景的使用，redsiion的源码。
+
+今日任务
+    jvm：继续听课，看书，尤其是记住参数，感觉其实也不难，就是毕竟比较多
+          方法区大小设置参数：-XX:MetaspaceSize  -XX:MaxMetaspaceSize,在Windows里前者是21M，后者是-1表示没有大小限制，在运行时，-XX:MetaspaceSize会随着gc反复变化
+          赋值：-XX:MetaspaceSize=100m
+          查看运行时方法区的大小：jinfo -flag MetaspaceSize pid
+          方法区主要包括类信息和运行时常量池，静态变量，即时编译器编译后的代码缓存，field信息，Method信息；使用cglib,proxy时，会产生大量的临时类，即动态生成的类，在没有用的时候应该予以回收。  
+          类信息包括：类型完整的有效名称，直接父类的完整有效名，修饰符，这个类型直接接口的一个有序列表。
+          field信息：field名称，类型，修饰符，field信息的存储按照生命顺序
+          methdo信息：名称，返回类型，修饰符，参数的数量类型，字节码，操作数栈，局部变量表大小等。
