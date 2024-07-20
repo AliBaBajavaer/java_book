@@ -1133,7 +1133,9 @@ kafka位移提交：
           KAFKA_HEAP_OPTS：指定堆大小。
           KAFKA_JVM_PERFORMANCE_OPTS：指定GC参数。
           如果Broker所在机器的CPU资源非常充裕，建议使用CMS收集器。启用方法是指定-XX:+UseCurrentMarkSweepGC。否则，使用吞吐量收集器。开启方法是指定-XX:+UseParallelGC。
-    总体上来说参数集中在broker端和消费者端，消费者端参数的目的是防止gc而造成reblance;broker端需要管理数据存储位置（多个磁盘存储），zookeeper连接，监听器（自己的注解，port,以及传输协议），数据方面的三个（数据保存时间，数据最大字节数，broker可以保存的总数据大小），topic相关的(topic的消息保存时间，topci可以保存的最大字节数，以及单个消息的最大大小)
+    生产者端：
+          enable.idempotence:true,表示开启生产者端的消息发送幂等性，但是只能保证单会话，单分区的幂等性。
+  总体上来说参数集中在broker端和消费者端，消费者端参数的目的是防止gc而造成reblance;broker端需要管理数据存储位置（多个磁盘存储），zookeeper连接，监听器（自己的注解，port,以及传输协议），数据方面的三个（数据保存时间，数据最大字节数，broker可以保存的总数据大小），topic相关的(topic的消息保存时间，topci可以保存的最大字节数，以及单个消息的最大大小)
 分区策略指定：生产者端
     常见分区策略：轮询，随机，按消息键存储。默认是按消息键存储，如果没有消息键就采用轮询的方式
     缺点：无法实现更多样的消息投递，这时可以实现org.apache.kafka.clients.producer.Partitioner，实现close,partition方法，其中的partition方法就是分区的策略。返回值就是分区的索引。
@@ -1151,8 +1153,80 @@ kafka位移提交：
                 还要在不降低可用性的基础上完成。推荐设置成replication.factor = min.insync.replicas + 1。
       consumer端：多线程异步处理消息时，如果使用自动提交位移，poll方法会在拉取消息前将上一次的offset自动提交。因此应该使用手动提交的方式。
                 enable.auto.commit：false。表示consumer取消自动提交。
+kafka拦截器：
+      producer端：会在send方法调用前，返回ack前调用onSend,onAcknowledgement，这里可以使用代理模式进行一些额外的处理；
+      consumer端：onConsume,onCommit，在poll方法前，commit提交位移后调用，同样也用的是代理模式，可以进行额外的处理；
+      当前Kafka拦截器的设置方法是通过参数配置完成的。生产者和消费者两端有一个相同的参数，名字叫interceptor.classes，它指定的是一组类的列表，每个类就是特定逻辑的拦截器实现类。拿上面的例子来说，
+      假设第一个拦截器的完整类路径是com.yourcompany.kafkaproject.interceptors.AddTimeStampInterceptor，第二个类是com.yourcompany.kafkaproject.interceptors.UpdateCounterInterceptor，
+      Properties props = new Properties();
+      List<String> interceptors = new ArrayList<>();
+      interceptors.add("com.yourcompany.kafkaproject.interceptors.AddTimestampInterceptor"); // 拦截器1
+      interceptors.add("com.yourcompany.kafkaproject.interceptors.UpdateCounterInterceptor"); // 拦截器2
+      props.put(ProducerConfig.INTERCEPTOR_CLASSES_CONFIG, interceptors);
+
+ tcp连接：     
+      KafkaProducer实例创建时启动Sender线程，从而创建与bootstrap.servers中所有Broker的TCP连接。
+      KafkaProducer实例首次更新元数据信息之后，还会再次创建与集群中所有Broker的TCP连接。
+      如果Producer端发送消息到某台Broker时发现没有与该Broker的TCP连接，那么也会立即创建连接。
+      如果设置Producer端connections.max.idle.ms参数大于0，则步骤1中创建的TCP连接会被自动关闭；如果设置该参数=-1，那么步骤1中创建的TCP连接将无法被关闭，从而成为“僵尸”连接。
+producer幂等性:防止消息被多次发送
+      开启enable.idempotence=true,之后broker端会保留一些参数，用于校验。这种处理只能保证单会话，单分区的幂等性。多分区时就要使用事务。
+      事务：使用事务型producer.
+          这里的事务借鉴了数据库的redolog。可以落盘，但必须追加标志才算是提交成功。事务消息的类型应该是这样的： begin1  x1 x2 end1 begin1 x2 y2 end2 ,我们可以看到，这就是一个redolog型的消息。没有end时，就不读取。
+          使用步骤：
+                  1.开启enable.idemponent=trrue,
+                  2.调整代码逻辑：    
+                               producer.initTransactions();
+                                try {
+                                            producer.beginTransaction();
+                                            producer.send(record1);
+                                            producer.send(record2);
+                                            producer.commitTransaction();
+                                } catch (KafkaException e) {
+                                            producer.abortTransaction();
+                                } 
+                  3.调整消费者端的isolation.level为read_committed,表示只会读取事务型producer成功提交事务写入的信息
+      总结：事务型producer相比于幂等性producer要慢很多;
+      
+
+   防止reblance的参数： 都是consumer端的参数 
+       session.timeout.ms 调大一些
+        heartbeat.interval.ms 调小一些
+        max.poll.interval.ms：调大一些
+        GC参数   
+  Kafka提交位移：
+          可以使用countdownlatch,cyclibarrier来进行提交；
+  commitfailedException:
+        poll方法调用间隔超过了max.poll.interval.ms的值，引发了reblance;
+        措施：增大max.poll.interval.ms或者减少poll方法拉取的消息数量，或者使用多线程加快消息的处理速度。
+  多线程方案：
+        针对reblance，可以使用消费者生产者模式，进一步去缓冲它。poll线程获取消息，提交给阻塞队列，worker线程从阻塞队列获取元素，进行处理，这样就可以防止poll的发生了。
+  使用动态线程池，consumer lag，监控，调整消费者的消费速度：
+        
+   kafka控制器：
+          第一个创建/controller的broker会成为控制器。控制器可以管理主题，分区重分配，领导者选举，集群成员管理，数据服务
+
+
+
+
+
+
 多线程：
       Future相比于FutureTask的区别： 
       FutureTask可以单独使用，也是一个线程。
 CompletableFuture:
-    
+  看一看jvm:
+感悟：最近比较乱，因为没有做项目，好多东西都没有落实下来，可以写写项目了。asynflow的本质就是reactor模式，不过这里是拉模式，并发量比较小。
+    就写asynflow这个项目；
+    任务上下文：下一个阶段任务处理需要的参数；可以用json字符串，url，总之是下一个阶段处理所需要的信息。 一般来讲任务是多变的。要根据任务来调用，也就是中介者模式，或者类似于reactor模式，并发量较大时，也可以完全做成reactor模式。启用多线程和代理模式来处理任务。
+    order_time:自定义的排序逻辑，使用时间和优先级这些单一的排序规则可能会导致饿死。因此order_time应该是包含多种排序规则的。那么可以用多元函数的方式对这几种规则的优先级进行映射 order_time=k1*l1+k2*l2+k3*l3+k4*l4;k代表的就是影响程度。最终order_time就是一个整数类型；
+          排序策略使用java的接口，策略模式进行安排。本质上就是我们制定了Java优先级的策略。在里面实现。并且将优先级编程可修改的。就是这样。仍然是按照asc来排序的。
+    最大重试次数：若重试次数过多，就不能再处理了。因此使用最大重试次数作为限制。
+    当前重试次数：记录当前已经重试的次数
+ 分表：分表是一个专门的服务，而且会变化，因此应该专门抽出来，做成一个服务。毕竟它完全就是一个后台服务而已。且分表的策略也比较复杂。最好不要放到一个jvm来做。
+        分表：任务开始表：worker从哪拉取任务，begin
+              任务插入表：flowsvr将任务放到哪个表。 end
+     这里可以借鉴mysql的redolog里checklsn的做法。此外，为了减少连接的创建于销毁，与数据库的操作的连接应该保持稳定，因此worker服务都通过flowsvr对数据库进行读写。后台线程因为逻辑可能会变，可以采用自己的连接来与数据库交互。
+          整体上flowsvr将执行所有与数据库相关的操作。任务治理将会对flowsvr,worker进行管理。worker从flowsvr对数据库进行操作；
+          flowsvr的功能：创建任务，更新任务；占据任务。
+  感悟：leetcode只能是积少成多，但是多线程是可以好好练练的！每天都要练习多线程
