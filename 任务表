@@ -1230,3 +1230,57 @@ CompletableFuture:
           整体上flowsvr将执行所有与数据库相关的操作。任务治理将会对flowsvr,worker进行管理。worker从flowsvr对数据库进行操作；
           flowsvr的功能：创建任务，更新任务；占据任务。
   感悟：leetcode只能是积少成多，但是多线程是可以好好练练的！每天都要练习多线程
+
+多线程设计模式：
+        1.immutable object 所有的对象都是不可变的。如果修改，就直接使用新的变量。这样可以保证，所有的线程访问该变量时，都不会出现线程安全问题。
+                  适用于变量被多个线程频繁访问，且更改概率不大时。此外还可以针对是否频繁修改，创建两个类，例如String,StringBuffer类，前者不会被改变，多个线程访问它时，不加锁，效率高，如果要频繁修改
+                就要使用StringBuffer类了，他是single thread execution模式的。
+        2.single thread execution:某个类，方法某一时刻只能由一个线程访问，可以加synchronized,或者双重检验的方式，这样的方法往往涉及到对共享变量的操作。需要进行加锁，比如阻塞队列，线程安全队列里面的添加，删除，修改操作。
+        这时应该注意锁的粒度。对于set类尽量使用分段锁，对于queue，可以采用乐观锁。这样可以减少阻塞的线程数。
+          场景：对共享数据的修改就要涉及到single thread execution模式，该模式保证一瞬间只有一个线程可以执行完该方法。
+            该对象的角色：
+                    sharedresource 共享资源   safemethod unsafemethod 不安全方法需要使用锁来保护。
+                还要思考该保护哪些字段，确定以后要看一看有没有漏的地方，以及用什么单位进行保护。
+      3.guarded suspension:保护性暂停。  程序的执行需要根据某个状态来，状态不行时，就要保护性暂停，悬挂起来，等待可以了再次使用。
+                          被守护方法执行时需要先满足守护条件。不满足则要悬挂起来，等待通知。代码逻辑为：
+              while(守护条件的逻辑非)        
+            {
+              wait();
+            }
+            执行目标条件处理;
+        此外还要有改变守护状态的方法。两个方法分开，就是生产者消费者模式，或者说生产者消费者模式本身就是guarded suspension模式。
+        类对象组成：
+                guardedObject{
+              guardedMethod();
+              stateChangingMethod();  
+                }  有些时候两个方法是在一块的。即状态的改变和获取在一个方法内；
+          guardedMethod(){
+          while(守护条件的逻辑非){ wait()/Thread.yield();  这里可以处理成自旋，阻塞，yield三种，自旋不放弃锁，阻塞放弃锁进入阻塞态，yield放弃锁，但并不阻塞}
+            process();
+          stateChangeMethod();   //
+          }
+        guarded suspension可能比较耗费性能。balking是前者的高性能版本。
+        4.Balking模式： balking模式相比于Guarded suspension，也存在守护条件，但是balking模式一但守护条件不成立，就进行中断处理，结束方法。因此实际应用中可以使用balking给guarded suspension进行兜底。
+                代码模板：
+                    if(守护条件的逻辑非) return ;
+                      process();
+        5.guarded timed: 介于balking,guarded suspension之间。再守护条件成立前先等待一段时间，到时候条件不成立，直接balking,比如redisson锁。在获取锁失败后，会先休眠一段时间。
+        6.生产者，消费者模式：
+                  由生产者，消费者，channel角色组成，channel需要提供wait,notify方法，channel本身必须是线程安全的，生产者和消费者以channel作为中介。当两者在处理速度上存在较大差异时，就引入channel进行平衡
+        7.Thread-Per-Message模式： 某个线程将某个任务委托给另一个线程，扩展后就会形成forkandjoin,这样可以做到不影响主线程的性能。可以大大的提高并发量。 
+                  模式成员：
+                              Client: 比如主线程，发起请求。但是他不必知道Host如何处理请求。
+                              Host: 调用request方法创建新的线程。在县城里使用Helper来处理请求。
+                              Helper:在新的线程终，调用helper执行任务，Helper为Host提供请求处理的功能
+                        关键在于Helper和host怎么连接。MVC里使用了hashmap以及线程池，kafka和redis则是固定下来。不进行连接，使用消息队列进行解耦。
+                  感觉：比Thread-per-Message更高并发量的就是生产者消费者模式。可以在每秒接收更多的请求。而且更加稳定，kafka用的就是这种模式，redis用的也是这种模式。Thread-per-Meassage常见的使用就是
+                    tomcat服务器，MVC框架。这也就是为什么，相比于redis,kafka这些使用了队列的服务器，并发量低的原因。
+        8.Work Thread模式，也被称为线程池模式,没有工作就等，工作来了就干活。角色包括：
+                    Client,Request,Channel,Worker Thread角色四个。核心就是调用和执行的分离；
+        9.Future模式：
+        10：active object模式：
+        11.Master-Slave:前边的reactor,Thread-per-Message的场景是任务数目多，而Master-Slave则是任务很大，需要拆分成子任务进行；典型实现就是forkandjoin;
+                    Master线程：（创建slave线程，提交任务时才执行这一步），将任务进行拆分，等待处理结果。返回处理结果。
+                    Slave线程：内部通过BlockingQueue 保存task,这时候如果没有任务就会阻塞。常见的模式也可以采用forkandjion模式。
+        Fork/Join:
+            
