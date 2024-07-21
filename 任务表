@@ -1283,4 +1283,5 @@ CompletableFuture:
                     Master线程：（创建slave线程，提交任务时才执行这一步），将任务进行拆分，等待处理结果。返回处理结果。
                     Slave线程：内部通过BlockingQueue 保存task,这时候如果没有任务就会阻塞。常见的模式也可以采用forkandjion模式。
         Fork/Join:
-            
+        总结：并发量大的时候用Thread-per-message,很大时用消息队列，任务很大时可以用master-slave,具体实现为fork/join;
+        感悟：多线程真的是门学问呀！要好好学多线程。
