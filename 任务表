@@ -1731,7 +1731,59 @@ juc多线程模型：
 
 
 
+Layouts:
+怎么实现日志快速查找，实际上就是用内存映射，在缓存区进行内存操作。这样就非常的快。
+wal技术可以保证写磁盘和写硬件一样快。因此日志的记录和输出才是最关键的。
+Log4j
+Log4j的使用需要appender，类似于handler,layouts等同于formatter,
+handler可以根据channel的方向分为控制台，文件，网络分为三类，其中文件又细分为两类。因此handler总分为5类
+日志系统应该搭配finally,代理模式使用。
+日志级别：
+  fatal:严重错误，造成系统崩溃并终止运行的信息，比如线程被销毁
+  error:错误信息，不会影响系统运行
+  warn:警告信息，可能会发生问题
+  info:运行信息，如数据连接，网络连接，io等
+  debug：记录程序的变量参数。
 
+  trace:追踪信息，记录程序的所有流程信息
+
+
+```
+
+```
+
+学Java虚拟机。学习zookeeper源码。理解分布式的第一步。
+zookeeper的每个节点相比于redis存储了许多版本信息，这样他就可以在分布式的环境下进行读写了。当集群进行崩溃恢复的时候，可以利用这一点来做。每个节点的数据
+是1mb，节点分为四大类。
+
+[]
+cZxid = 0x4
+ctime = Sun Aug 04 17:40:32 CST 2024
+mZxid = 0x6
+mtime = Sun Aug 04 17:48:11 CST 2024
+pZxid = 0x7
+cversion = 2
+dataVersion = 1
+aclVersion = 0
+ephemeralOwner = 0x0
+dataLength = 3
+numChildren = 0
+
+
+发送分为5步：
+      1.确认发送的topic是可用的，  需要获取metadata
+      2.序列化record的key,value;
+      3.通过负载均衡，获取partition。
+      4.向缓冲区追加数据
+      5.追加完后如果缓冲区达到了bacth.size大小，就唤醒sender线程
+  可以看到这一步就是异步的,send只管把数据放到缓冲区就行，但也有一个问题，元数据是怎么获取的。
+    1.通过waitOnMetadata()来获取元数据，确保topic可用
+    2.序列化k,v。这一步可以自定义序列化实现。但kafka的序列化也可以了。这里如果选取了string的序列化器，就是用toString().getBytes(Charsets.UTF-8);
+    3.获取partition,这里涉及到负载均衡机制，经过计算后，会确定消息将要发送到哪一个broker,也就是partition.  
+    4.向accumulator写数据：
+        accumulator的核心存储结构是 ConcurrentMap<TopicPartition,Deque<RecordeBatch>> 每一个TopicPartition会对应一个Deque，而且在写入的时候
+      是向topicPartition对应的Deque里的RecordBatch来写数据的。然后一次发送一个RecordBatch.这里的好处在于。发送者和生产者就不会抢锁了。也就是说。RecordBatch
+      数据不满时，消费者线程不启动，发送者一直写。满了的时候，唤醒消费者线程发送，因此两者可以减少等待时间。
 
 
 
