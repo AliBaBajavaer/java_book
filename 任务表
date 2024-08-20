@@ -2170,4 +2170,56 @@ redis，加上kafka就是个ap的。最后还是要靠数据库兜底。如果�
 比如车主 owner,是银行，公司，人的并类型的子类。这种情况下，并类型不会有全部继承父类的所有属性。
 连接池复用的是线程。连接可以创建多个。用的时候用就行了。
 	关系模型把数据库表示为关系的集合，每个关系雷伊一张值表。在关系数据库里，表称为关系，列称为属性。关系中属性的个数称为度。
-	
+
+电商商品分类是一个树形结构，不同的属性放在不同的层级上。我们可以认为，每个节点对应一个属性，即树高，节点位置可以定位一个属性；
+因此属性表的设置：检索时根据分类，层级来确定属性。这样就可以继续共享数据量，每个数据只存储一份。有一张表来保存所有的属性
+	分类，层级 属性名，
+
+//我今天要写完spu,sku的作业，然后看nacos的源码，操作系统内存管理。三大部分。现在之所以定不了计划就是因为东西太难了。
+
+网卡将接收到的数据放到唤醒缓冲队列RingBuffer里，buffer满的时候包就会被丢弃。ifconfig命令结果overruns表示满的时候被丢弃的数据包大小。可以使用ethtool来增大长度
+dma操作完成时，网卡会向cpu发送中断
+
+
+阅读nacos源码：
+	一致性的保证，在网络系统里，应该在接受双方配置不同级别的数据同步，来确保最终一致性。所谓的不同级别就是不同的时间周期，不同的数据量。也就是反熵与谣言传播。
+	nacos服务端使用udp向client推送，client则定时从nacos里获取信息。来保证数据的最终一致性。
+	redis通过追加写实现发送，以及psync命令即反熵来确保最终一致性。因此最终一致性的获取应该是双方共同使用反熵和直接发送来解决。
+	nacos的消息一致性保证比较简单，这是因为nacos本质就是一个ap服务，cp,ap的实现本质看的就是用不用raft算法。raft算法实现了强一致性。distro则是弱一致性。因为修改好后
+	只会通知。
+	当数据非常多的时候，相比于直接发送，更应该使用谣言来实现最终一致性。
+	nacos的主动触发是通过观察者模式来实现的，消息传播不属于事务的一部分。
+可以看到，分布式事务里一定要有重试机制。重试机制的实现都需要第三方存储，比如数据库，或者本地数据结构。这里可以有一些思考。这个东西要放到哪里。如果有些事务即使服务挂了也一定要完成，那就要用分布式日志的方式，但是服务注册这种，如果
+服务挂了，也就没必要重试了，那就没必要依赖数据库或者分布式消息队列。直接放在本地内存就行。
+	因此Nacos选择将注册任务的Undo队列放在本地内存里。
+client在执行注册前，先写undolog，将注册任务放到一个队列里，然后用后台线程保证该事务一定完成。
+
+
+		 //undo日志的存放处
+		    private final ConcurrentMap<String, InstanceRedoData> registeredInstances = new ConcurrentHashMap<>();
+		写Undo日志
+		 public void cacheInstanceForRedo(String serviceName, String groupName, Instance instance) {
+		        String key = NamingUtils.getGroupedName(serviceName, groupName);
+		        InstanceRedoData redoData = InstanceRedoData.build(serviceName, groupName, instance);
+		        synchronized (registeredInstances) {
+		            registeredInstances.put(key, redoData);
+		        }
+		    }
+		
+		@Override
+		public void registerService(String serviceName, String groupName, Instance instance) throws NacosException {
+		    NAMING_LOGGER.info("[REGISTER-SERVICE] {} registering service {} with instance {}", namespaceId, serviceName,
+		            instance);
+		        //添加redo日志
+		    redoService.cacheInstanceForRedo(serviceName, groupName, instance);
+		
+		    doRegisterService(serviceName, groupName, instance);
+		}
+上面这个方法展示了，注册前首先将注册任务数据写到undo 区域，任务完成后标记undo区域里相关数据为已完成。保存任务的中间状态用于重试，是很重要的事情。这里就涉及到该用什么方式保存中间状态。
+这里不建议用消息队列，消息队列只能按照顺序消费，一般应该用支持随机读写的中间件，如数据库，es这两个，消息队列是用来缓存消息的。无法提供重试机制。或者说很难提供重试机制。因此一般应该选择mysql,elasticsearch;
+
+表的实现方式：双map  Map<namespace, Map<group::serviceName, Service>>
+nacos的注册采用多写的方式，来提高qps，以及保证最终一致性。这么做的前提也是，数据量并不大，消耗网络带宽也不多
+
+raft协议的坏处：qps不高，kafka实际上使用了分区的机制，才保证了高qps，zookeeper没有采用分区机制，并发量就不高。而nacos没有采用raft协议，更不是paxos协议，nacos本身也是靠gfs来实现的。
+nacos如何注册服务，nacos采用了生产这消费者缓冲区模型，接收到service后，先将service对象放到阻塞队列里。然后其他线程进行处理。
