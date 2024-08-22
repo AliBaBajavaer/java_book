@@ -2223,3 +2223,88 @@ nacos的注册采用多写的方式，来提高qps，以及保证最终一致性
 
 raft协议的坏处：qps不高，kafka实际上使用了分区的机制，才保证了高qps，zookeeper没有采用分区机制，并发量就不高。而nacos没有采用raft协议，更不是paxos协议，nacos本身也是靠gfs来实现的。
 nacos如何注册服务，nacos采用了生产这消费者缓冲区模型，接收到service后，先将service对象放到阻塞队列里。然后其他线程进行处理。
+
+服务的注册：
+
+  public void start() {
+        if (!this.isEnabled()) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Discovery Lifecycle disabled. Not starting");
+            }
+
+        } else {
+            if (!this.running.get()) {
+                this.context.publishEvent(new InstancePreRegisteredEvent(this, this.getRegistration()));
+                this.register(); 服务注册
+                if (this.shouldRegisterManagement()) {
+                    this.registerManagement();
+                }
+		//服务注册完成后就要绑定事件。
+                this.context.publishEvent(new InstanceRegisteredEvent(this, this.getConfiguration()));
+                this.running.compareAndSet(false, true);
+            }
+
+        }
+    }
+
+public void register(Registration registration) {
+        if (StringUtils.isEmpty(registration.getServiceId())) {
+            log.warn("No service to register for nacos client...");
+        } else {
+            String serviceId = registration.getServiceId();
+            Instance instance = this.getNacosInstanceFromRegistration(registration);
+
+            try {
+	//服务注册
+                this.namingService.registerInstance(serviceId, instance);
+                log.info("nacos registry, {} {}:{} register finished", new Object[]{serviceId, instance.getIp(), instance.getPort()});
+            } catch (Exception var5) {
+	//失败的时候记录日志
+                log.error("nacos registry, {} register failed...{},", new Object[]{serviceId, registration.toString(), var5});
+            }
+
+        }
+ }
+
+在注册前将信息添加到定时任务里，该定时任务每秒钟获取信息，如果从远端没有发现该服务，该定时任务就会重新注册。这里就是重试机制。保证最终一致性。这也就是undolog，可以说undolog+定时任务才是最终一致性的精髓。只不过asynflow实现了排序。基于消息队列和本地消息表的最终一致性。
+
+真正发起注册
+   public void registerService(String serviceName, String groupName, Instance instance) throws NacosException {
+        LogUtils.NAMING_LOGGER.info("[REGISTER-SERVICE] {} registering service {} with instance: {}", new Object[]{this.namespaceId, serviceName, instance});
+        Map<String, String> params = new HashMap(9);
+        params.put("namespaceId", this.namespaceId);
+        params.put("serviceName", serviceName);
+        params.put("groupName", groupName);
+        params.put("clusterName", instance.getClusterName());
+        params.put("ip", instance.getIp());
+        params.put("port", String.valueOf(instance.getPort()));
+        params.put("weight", String.valueOf(instance.getWeight()));
+        params.put("enable", String.valueOf(instance.isEnabled()));
+        params.put("healthy", String.valueOf(instance.isHealthy()));
+        params.put("ephemeral", String.valueOf(instance.isEphemeral()));
+        params.put("metadata", JSON.toJSONString(instance.getMetadata()));
+        this.reqAPI(UtilAndComs.NACOS_URL_INSTANCE, params, (String)"POST");
+    }
+1
+总结来说nacos客户端在注册服务时：使用Undo 定时任务，确保一定可以注册。使用Http短链接进行注册。
+
+服务端进行注册的方式：
+
+操作系统read,write系统调用：
+	实际上write只是将文件信息写到内核区，之后的fsync()才会将page Cache的信息刷到硬盘里。而真正处理刷盘的进程是pdflush进程，该进程固定执行刷盘任务，或者在内存不足时由操作系统唤醒。
+	read系统调用实际上也是将page cache区域的文件内容读取到用户态，当pagecache区域没有文件时，read系统调用就会阻塞。之后由OS将文件读取到pagecache后，在唤醒read系统调用所在的进程/线程，read系统调用开始工作。
+	mmap系统调用：将pagecache区域的地址映射到进程的页表里。再把页表映射给fd对应的部分。
+	直接Io:数据从用户态->disk
+	缓存io:数据从用户态->pageCache->disk
+	实际上文件整体也被分为标准Io,直接映射io，直接Io。直接Io的效率最高。直接映射Io无法回滚。
+这里我们就知道什么是内核了：若干个核心进程。比如kswapd线程用于回收内存， ksoftirqd线程用于处理软中断，kplind进程会执行刷盘的动作。
+asynflow本身就是进程调度，如果只按照优先级就会导致一些任务饿死。因此使用多级反馈队列的方式进行调度，防止进程饿死。其实服务拉去任务也可以这么考虑。拉取任务进行处理等效为进程调度.
+进程内存分区：
+		从下到上依次是代码段，全局变量常量段，文件映射与匿名映射区，堆，栈内核空间。代码段就是编译转换为二进制的代码，文件映射与匿名映射区指的是系统调用，以及mmap映射的文件。
+		比如c语言里的Printf()函数，它是写在stdio.h文件里的。是和main函数的代码一起编译的。都放在代码段里，但是printf函数里的操作系统调用，是放在文件映射与匿名映射区里的。就指针来说，函数指针对应的地址是在
+		代码段里，malloc函数对应的指针在堆段里， int*a=&aa;里a的地址是在栈里， const int w=10; int*1=&w里l的地址则是在全局变量常量段里。每个段里再有相关的页分区。但是io文件对应的区域就是再堆栈里了，而不是在别的地方。
+		另外还有保留段。就是null对应的段。这就是进程再内存里的全部分区。
+
+TransactionManager 事务管理器
+PlatformTransactionManager:平台事务管理器。
+
