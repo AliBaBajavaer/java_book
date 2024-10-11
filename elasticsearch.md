@@ -197,4 +197,104 @@ GET /hotel/_search
   }
 }
 
+分页，排序，高亮
+GET /hotel/_search
+{
+  "query":
+  {
+    "bool":
+    {
+      "must":
+      [
+          {"term":{"city":"上海"}}
+      ],
+      "should":
+      [
+      {"term":{"brand": "皇冠假日"}},
+      {"term":{"brand":"华美达"}}
+      ],
+      "must_not":
+      [
+      {"range":{"price":{"lte": 500}}}
+      ],
+      "filter":
+      [
+      {"geo_distance":
+      {
+        "distance":"100km",
+        "location": {
+          
+          "lat": 30.9,
+          "lon":121.7
+        }
+        
+      }}  
+      ]
+    }
+  },
+  "sort":
+  [
+    {"score":"desc"},
+    {"price":"asc"}
+  ],
+  "from":1,
+  "size":10
   
+  }
+
+  深分页： search_after(分页时排序，从上一次排序开始，查询下一页数据) scroll
+
+  高亮
+  GET /hotel/_search
+{
+  "query":
+  {
+    "bool":
+    {
+      "must":
+      [
+          {"term":{"city":"上海"}}
+      ],
+      "should":
+      [
+      {"term":{"brand": "皇冠假日"}},
+      {"term":{"brand":"华美达"}}
+      ],
+      "must_not":
+      [
+      {"range":{"price":{"lte": 500}}}
+      ],
+      "filter":
+      [
+      {"geo_distance":
+      {
+        "distance":"100km",
+        "location": {
+          
+          "lat": 30.9,
+          "lon":121.7
+        }
+        
+      }}  
+      ]
+    }
+  },
+  "sort":
+  [
+    {"score":"desc"},
+    {"price":"asc"}
+  ],
+  "from":1,
+  "size":10
+  , "highlight": {
+    "fields":
+    {
+      "name":
+      {
+        "pre_tags": "<em>",
+        "post_tags": "<em>"
+        , "require_field_match": "false"
+      }
+    }
+  }
+  }
