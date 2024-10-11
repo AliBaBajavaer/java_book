@@ -160,4 +160,41 @@ GET /hotel/_search
     }
   }
 }
+
+GET /hotel/_search
+{
+  "query":
+  {
+    "bool":
+    {
+      "must":
+      [
+          {"term":{"city":"上海"}}
+      ],
+      "should":
+      [
+      {"term":{"brand": "皇冠假日"}},
+      {"term":{"brand":"华美达"}}
+      ],
+      "must_not":
+      [
+      {"range":{"price":{"lte": 500}}}
+      ],
+      "filter":
+      [
+      {"geo_distance":
+      {
+        "distance":"100km",
+        "location": {
+          
+          "lat": 30.9,
+          "lon":121.7
+        }
+        
+      }}  
+      ]
+    }
+  }
+}
+
   
