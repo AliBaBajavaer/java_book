@@ -298,3 +298,157 @@ GET /hotel/_search
     }
   }
   }
+
+桶查询,  根据品牌进行分组,terms里填写分组的字段，分组的数据大小，排序依据，分别对应field,size order:{}
+外面包裹aggs:{"xxxAgg":{"terms:{}}}
+GET /hotel/_search
+{1
+  "aggs":
+  {
+    "brandAgg":
+    {
+      "terms":
+      {
+        "field":"brand",
+        "size": 20
+      }
+    }
+  },
+  "size": 0      这个意思是不返回数据
+}
+
+bool查询
+
+GET /hotel/_search
+{
+  "query":
+  {
+    "bool":
+    {
+      "must":
+      [
+       { "range":
+        {
+          "price":
+          {
+            "lte": 2000,
+            "gte": 20
+          }
+        }
+       }
+      ],
+      "should" : 
+      [
+        {
+         "geo_bounding_box" :
+          {
+            "location":
+            {
+              "top_left":
+              {
+                "lat": 31.1,
+                "lon": 121.5
+              },
+              "bottom_right":
+              {
+                "lat":30.9,
+                "lon":121.7
+              }
+            }
+          }
+          
+        }
+      ]
+    }
+  }
+
+
+
+管道聚合，再聚合的基础上进行子聚合  
+GET /hotel/_search
+
+{
+  "size":0,
+  "aggs":
+  {
+    "brandAgg":
+    {
+      "terms":
+      {
+        "field":"brand",
+        "size": 20,
+        "order":
+        {
+          "statsAgg.avg":"desc"
+        }
+      },
+      "aggs":
+      {
+        "statsAgg":
+        {
+          "stats":
+          {
+            "field":"price"
+          }
+        }
+      }
+    }
+  }
+}
+
+自定义分词器；
+PUT /test
+{
+  "settings":
+  {
+    "analysis": 
+    {
+      "analyzer": 
+      {
+        "my_analyzer":
+        {
+          "tokenizer":"ik_max_word",
+          "filter":"py"
+        }
+      },
+      "filter":
+      {
+        "py":
+        {
+          "type":"pinyin",
+          "keep_full_pinyin":false,
+          "keep_joined_full_pinyin":true,
+          "keep_original":true,
+          "limit_first_letter_length": 16,
+          "remove_duplicated_term":true,
+          "none_chinese_pinyin_tokenize":false
+        }
+      }
+    }
+    
+  },
+  
+  "mappings":
+  {
+    "properties": 
+    {
+     
+      "name":
+      {
+        "type":"text",
+        "analyzer": "my_analyzer",
+        "search_analyzer": "ik_max_word"
+      }
+    
+     
+    }
+  }
+  
+  
+}
+
+
+//其实就是手动更新,kafka拿到消息后进行更新。
+
+
+
