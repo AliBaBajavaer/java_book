@@ -446,9 +446,55 @@ PUT /test
   
   
 }
-
+补全查询，开头就是suggest
 
 //其实就是手动更新,kafka拿到消息后进行更新。
 
+#补全查询
+PUT /test2
+{
+  "mappings":
+  {
+    "properties":
+    {
+      "title":
+      {
+        "type":"completion"
+      }
+    }
+  }
+}
 
+POST /test2/_doc
+{
+  "title": ["Sony","WH-1000XM3"]
+}
+
+
+POST /test2/_doc
+{
+  "title": ["SK-II","PITERA"]
+}
+
+POST /test2/_doc
+{
+  "title": ["Nintendo","switch"]
+}
+#text是文本 field只补全的字段，skip直是否跳过重复，size指返回的词条数
+GET /test2/_search
+{
+  "suggest":
+  {
+    "title_suggest":
+    {
+      "text":"N",   
+      "completion":
+      {
+        "field":"title",
+        "skip_duplicates":true,
+        "size":10
+      }
+    }
+  }
+}
 
